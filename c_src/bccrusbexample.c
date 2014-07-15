@@ -4,32 +4,36 @@
  *
  * ##################################################################### */
 
+/* =====================================================================
+ * header files
+ * ===================================================================== */
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <libusb.h>
 
 /* =====================================================================
- *
  * forward declarations
- *
  * ===================================================================== */
-
 int main(int argc, char** argv);
 void banner();
 void discover_crazyradio();
 bool is_crazyradio(libusb_device *device);
 
 /* =====================================================================
- *
- * main entry point
- *
+ * constants
  * ===================================================================== */
+static const int CrazyradioVersionID = 0x1915;
+static const int CrazyradioProductID = 0x7777;
 
+/* =====================================================================
+ * main entry point
+ * ===================================================================== */
 int main(int argc, char** argv)
 {
-  bool showBanner = true;
-  int r;
+  int             r;
+  bool            showBanner = true;
+  libusb_context *context    = NULL;
 
   /* parse arguments */
   
@@ -39,42 +43,36 @@ int main(int argc, char** argv)
   }
 
   /* do something */
-  r = libusb_init(NULL);
-  if (r < 0) {
-    return r;
+  r = libusb_init(&context);
+  if (r == 0) {
+    discover_crazyradio(context);
   }
-  discover_crazyradio();
-  libusb_exit(NULL);
+  libusb_exit(context);
   
   /* terminate... */
   return 0;
 }
 
 /* =====================================================================
- *
  * display the programs banner
- *
  * ===================================================================== */
-
 void banner()
 {
   puts("Bitcraze Crazyradio USB Example");
 }
 
 /* =====================================================================
- *
  * discover the Crazyradio USB dongle
- *
  * ===================================================================== */
-
-void discover_crazyradio()
+void discover_crazyradio(libusb_context *context)
 {
   libusb_device **list;
   libusb_device *found = NULL;
-  ssize_t cnt = libusb_get_device_list(NULL, &list);
+  ssize_t cnt;
   ssize_t i = 0;
   int err = 0;
-
+  
+  cnt = libusb_get_device_list(context, &list);
   if (cnt < 0) {
     fprintf(stderr, "Error: can not find any USB devices!\n");
     goto cleanup;
@@ -102,16 +100,16 @@ void discover_crazyradio()
 }
 
 /* =====================================================================
- *
  * check if USB device is the Crazyradio dongle
- *
  * ===================================================================== */
-
 bool is_crazyradio(libusb_device *device)
 {
   struct libusb_device_descriptor desc;
   int version_major;
   int version_minor;
+  uint8_t port_numbers[8];
+  int port_count;
+  int i;
   
   if(device == NULL) return false;
   
@@ -121,11 +119,11 @@ bool is_crazyradio(libusb_device *device)
     return false;
   }
   
-  if(desc.idVendor != 0x1915) {
+  if(desc.idVendor != CrazyradioVersionID) {
     return false;
   }
   
-  if(desc.idProduct != 0x7777) {
+  if(desc.idProduct != CrazyradioProductID) {
     return false;
   }
 
@@ -137,6 +135,15 @@ bool is_crazyradio(libusb_device *device)
 	  libusb_get_bus_number(device),
 	  libusb_get_device_address(device),
           version_major, version_minor);
+  
+  port_count = libusb_get_port_numbers(device, port_numbers, 8);
+  if (port_count == LIBUSB_ERROR_OVERFLOW) {
+  } else {
+    fprintf(stderr, "Info: port count = %d\n", port_count);
+    for(i = 0; i < port_count; i++) {
+      fprintf(stderr, " port[%d] = %d\n", i, port_numbers[i]);
+    }
+  }
   
   return true;
 }
