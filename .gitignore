@@ -1,0 +1,16 @@
+# Erlang/OTP
+*.beam
+ebin/*.beam
+
+# C/C++ files
+priv/*
+*.o
+
+# libraries specific
+*.so
+*.dll
+
+# unix stuff
+core
+
+# End Of File
