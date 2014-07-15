@@ -110,6 +110,8 @@ void discover_crazyradio()
 bool is_crazyradio(libusb_device *device)
 {
   struct libusb_device_descriptor desc;
+  int version_major;
+  int version_minor;
   
   if(device == NULL) return false;
   
@@ -126,11 +128,15 @@ bool is_crazyradio(libusb_device *device)
   if(desc.idProduct != 0x7777) {
     return false;
   }
-  
+
+  version_major = desc.bcdDevice >> 8;
+  version_minor = desc.bcdDevice & 0x0FF;
+
   fprintf(stderr,
-	  "Info: found Crazyradio: bus %d, device %d.\n",
+	  "Info: found Crazyradio: bus %d, device %d, version %x.%x.\n",
 	  libusb_get_bus_number(device),
-	  libusb_get_device_address(device));
+	  libusb_get_device_address(device),
+          version_major, version_minor);
   
   return true;
 }
