@@ -25,7 +25,9 @@
  *
  * --------------------------------------------------------------------- */
 
-
+/* ---------------------------------------------------------------------
+ * header files
+ * --------------------------------------------------------------------- */
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -36,6 +38,9 @@
 
 #include <linux/joystick.h>
 
+/* ---------------------------------------------------------------------
+ * function prototypes
+ * --------------------------------------------------------------------- */
 int main(int argc, char** argv);
 void hack(void);
 void joystick_name_version(int fd);
@@ -43,6 +48,9 @@ void joystick_event(struct js_event e);
 void joystick_event_button(struct js_event e);
 void joystick_event_axis(struct js_event e);
 
+/* ---------------------------------------------------------------------
+ * main entry point
+ * --------------------------------------------------------------------- */
 int main(int argc, char** argv)
 {
   /* --- parse arguments ----------------------------------------------- */
@@ -56,6 +64,9 @@ int main(int argc, char** argv)
   return 0;
 }
 
+/* ---------------------------------------------------------------------
+ * just a hack, to get a basic understanding of the joystick API
+ * --------------------------------------------------------------------- */
 void hack(void)
 {
   int fdjs;
@@ -74,13 +85,19 @@ void hack(void)
       
       /* check if we got an error */
       if (errno != EAGAIN) {
-	/* error !!! */
+	/* TODO: add error handling/information */
       }
     }
     close(fdjs);
+  } else {
+    fprintf(stderr, "Error: failed to open joystick device!\n");
+    /* TODO: add error information */
   }
 }
 
+/* ---------------------------------------------------------------------
+ * get the joystick name and some more information
+ * --------------------------------------------------------------------- */
 void joystick_name_version(int fd)
 {
   char name[128];
@@ -113,6 +130,9 @@ void joystick_name_version(int fd)
   }
 }
 
+/* ---------------------------------------------------------------------
+ * handle a joystick event
+ * --------------------------------------------------------------------- */
 void joystick_event(struct js_event e)
 {
   switch (e.type) {
@@ -127,6 +147,9 @@ void joystick_event(struct js_event e)
   }
 }
 
+/* ---------------------------------------------------------------------
+ * handle a joysitck button event
+ * --------------------------------------------------------------------- */
 void joystick_event_button(struct js_event e)
 {
   switch (e.number) {
@@ -186,6 +209,9 @@ void joystick_event_button(struct js_event e)
   }
 }
 
+/* ---------------------------------------------------------------------
+ * handle a joystick axis event
+ * --------------------------------------------------------------------- */
 void joystick_event_axis(struct js_event e)
 {
   switch (e.number) {
@@ -242,7 +268,6 @@ void joystick_event_axis(struct js_event e)
     fprintf(stderr, "js - axis unknown - %d - %d - %d - %d\n", e.time, e.value, e.type, e.number);
   }
 }
-
 
 /* #####################################################################
  *
