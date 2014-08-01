@@ -8,9 +8,10 @@
 %%% Created : 29 Jul 2014 by Boris Mühmer <boris.muehmer@gmail.com>
 %%%-------------------------------------------------------------------
 -module(joystick).
+-on_load(init/0).
 
 %% API
--export([start/0]).
+-export([example/0]).
 
 %%%===================================================================
 %%% API
@@ -22,13 +23,49 @@
 %% @end
 %%--------------------------------------------------------------------
 
-start() ->
-    case file:open("/dev/input/js0", [read, binary, raw]) of
-	{ok, IoDevice} -> ok,
-			  file:close(IoDevice);
-	{error, Error} -> io:format("Error: ~p~n", [Error])
+example() ->
+    Pathname = "/dev/input/js0",
+    case jsnif_open(Pathname) of
+	{ok, FD} ->
+	    case jsnif_read(FD) of
+		{ok, no_event} ->
+		    io:format("event: none~n");
+		{ok, Time, Value, Type, Number} ->
+		    io:format("event:~p/~p/~p/~p~n", [Time, Value, Type, Number]);
+		{error, Errno} ->
+		    io:format("Error: ~p~n", [Errno])
+	    end,
+	    jsnif_close(FD);
+	{error, Errno} ->
+	    io:format("Error: ~p~n", [Errno])
     end.
 
 %%%===================================================================
 %%% Internal functions
+%%%===================================================================
+
+%%%===================================================================
+%%% NIF init and private NIFs
+%%%===================================================================
+
+init() ->
+    ok = erlang:load_nif("../priv/joysticknif", 0).
+
+jsnif_open(_Pathname) ->
+    exit(joysticknif_not_loaded).
+jsnif_close(_FD) ->
+    exit(joysticknif_not_loaded).
+jsnif_read(_FD) ->
+    exit(joysticknif_not_loaded).
+jsnif_name(_FD) ->
+    exit(joysticknif_not_loaded).
+jsnif_version(_FD) ->
+    exit(joysticknif_not_loaded).
+jsnif_axes(_FD) ->
+    exit(joysticknif_not_loaded).
+jsnif_buttons(_FD) ->
+    exit(joysticknif_not_loaded).
+
+%%%===================================================================
+%%% End Of File
 %%%===================================================================

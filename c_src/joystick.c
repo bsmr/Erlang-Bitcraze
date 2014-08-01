@@ -1,19 +1,7 @@
 /* #####################################################################
  *
- * An Erlang/OTP C Node to interface a joxstick.
- *
- * compile:
- * > gcc -s -Wall -O3 -o priv/joystick c_src/joystick.c
- *
- * This is currently just a hack, to see what a Sony Dualshock 3 Sixaxis
- * returns.
- *
- * Notes for "PLAYSTATION(R)3 Controller":
- * - ioctl() for version, number of axis, and number of buttons does not
- *   work!
- * - the 1st bulk of "events" (with JS_EVENT_INIT) reports the state for
- *   17 buttons (0..16) and 29 axis (0..28), but I could not see any
- *   events for axis 20..28, yet.
+ * A small test program for the Linux Joystick API.
+ * This is just a hack, to see what a Sony Dualshock 3 Sixaxis returns.
  *
  * ##################################################################### */
 
@@ -75,23 +63,25 @@ void hack(void)
 
   fdjs = open("/dev/input/js0", O_RDONLY | O_NONBLOCK);
   if (0 < fdjs) {
-    
     joystick_name_version(fdjs);
-    
     while (loop) {
-      while (0 < read(fdjs, &jse, sizeof(struct js_event))) {
+      if (-1 == read(fdjs, &jse, sizeof(struct js_event))) {
+	if (errno == EAGAIN) {
+	  //fprintf(stderr, "no event\n");
+	} else {
+	  fprintf(stderr, "Error: read() failed with errno %d!\n", errno);
+	  loop = 0;
+	}
+      } else {
 	joystick_event(jse);
       }
-      
-      /* check if we got an error */
-      if (errno != EAGAIN) {
-	/* TODO: add error handling/information */
-      }
     }
-    close(fdjs);
+    if (-1 == close(fdjs)) {
+      fprintf(stderr, "Error: failed to close() with errno %d!\n", errno);
+    }
   } else {
-    fprintf(stderr, "Error: failed to open joystick device!\n");
-    /* TODO: add error information */
+    fprintf(stderr, "Error: failed to open joystick device wth errno %d!\n", errno);
+    exit(1);
   }
 }
 
@@ -101,32 +91,32 @@ void hack(void)
 void joystick_name_version(int fd)
 {
   char name[128];
-  int version;
+  int  version;
   char count_axis;
   char count_buttons;
   
-  if (0 < ioctl(fd, JSIOCGNAME(sizeof(name)), name)) {
-    fprintf(stderr, "Joystick name: %s\n", name);
-  } else {
+  if (-1 == ioctl(fd, JSIOCGNAME(sizeof(name)), name)) {
     fprintf(stderr, "Failed to get name of joystick!\n");
+  } else {
+    fprintf(stderr, "Joystick name: %s\n", name);
   }
 
-  if (0 < ioctl(fd, JSIOCGVERSION, &version)) {
-    fprintf(stderr, "Joystick version: %d\n", version);
-  } else {
+  if (-1 == ioctl(fd, JSIOCGVERSION, &version)) {
     fprintf(stderr, "Failed to get version of joystick driver!\n");
+  } else {
+    fprintf(stderr, "Joystick version: %d\n", version);
   }
 
-  if (0 < ioctl(fd, JSIOCGAXES, &count_axis)) {
-    fprintf(stderr, "Axis count: %d\n", count_axis);
-  } else {
+  if (-1 == ioctl(fd, JSIOCGAXES, &count_axis)) {
     fprintf(stderr, "Failed to get axis count!\n");
+  } else {
+    fprintf(stderr, "Axis count: %d\n", count_axis);
   }
 
-  if (0 < ioctl(fd, JSIOCGBUTTONS, &count_buttons)) {
-    fprintf(stderr, "Button count: %d\n", count_buttons);
-  } else {
+  if (-1 == ioctl(fd, JSIOCGBUTTONS, &count_buttons)) {
     fprintf(stderr, "Failed to get button count!\n");
+  } else {
+    fprintf(stderr, "Button count: %d\n", count_buttons);
   }
 }
 
@@ -155,6 +145,7 @@ void joystick_event_button(struct js_event e)
   switch (e.number) {
   case 0:
     /* SELECT */
+    fprintf(stderr, "js - SELECT button - %d - %d - %d - %d\n", e.time, e.value, e.type, e.number);
     break;
   case 1:
     /* left joystick press */
@@ -164,6 +155,7 @@ void joystick_event_button(struct js_event e)
     break;
   case 3:
     /* START */
+    fprintf(stderr, "js - START button - %d - %d - %d - %d\n", e.time, e.value, e.type, e.number);
     break;
   case 4:
     /* left up */
