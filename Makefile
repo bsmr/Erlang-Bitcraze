@@ -27,13 +27,13 @@ ebin/ebe.beam:	src/ebe.erl
 ebin/joystick.beam:	src/joystick.erl priv/joystick.so
 
 priv/bccrusbexample:	c_src/bccrusbexample.c
-	gcc -s -Wall -O2 -o priv/bccrusbexample $(LIBUSB_CFLAGS) c_src/bccrusbexample.c $(LIBUSB_LIBS)
+	gcc -s -Wall -O2 -o $@ $(LIBUSB_CFLAGS) $< $(LIBUSB_LIBS)
 
 obj/joystick.o:	c_src/joystick.c
-	gcc -fpic -shared -Wall -O2 -I$(ERL_INCS) -o obj/joystick.o -c c_src/joystick.c
+	gcc -fpic -shared -Wall -O2 -I$(ERL_INCS) -o $@ -c $<
 
 priv/joystick.so:	obj/joystick.o
-	gcc -s -fpic -shared -o priv/joystick.so obj/joystick.o
+	gcc -s -fpic -shared -o $@ $^
 
 clean:
 	@rm -f *~
