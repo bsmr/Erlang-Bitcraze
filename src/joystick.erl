@@ -12,6 +12,7 @@
 
 %% API
 -export([example/0]).
+-export([jsnif_name/1, jsnif_version/1, jsnif_axes/1, jsnif_buttons/1]).
 
 %%%===================================================================
 %%% API
@@ -49,7 +50,7 @@ example() ->
 %%%===================================================================
 
 init() ->
-    ok = erlang:load_nif("../priv/joysticknif", 0).
+    ok = erlang:load_nif("../priv/joystick", 0).
 
 jsnif_open(_Pathname) ->
     exit(joysticknif_not_loaded).
