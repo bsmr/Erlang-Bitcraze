@@ -1,21 +1,12 @@
-/* #####################################################################
- *
- * A small test program for the Linux Joystick API.
- * This is just a hack, to see what a Sony Dualshock 3 Sixaxis returns.
- *
- * ##################################################################### */
-
 /* =====================================================================
- *
+ * An Erlang/OTP NIF interface to access the Linux Joystick API
  * ===================================================================== */
-
-/* ---------------------------------------------------------------------
- *
- * --------------------------------------------------------------------- */
 
 /* ---------------------------------------------------------------------
  * header files
  * --------------------------------------------------------------------- */
+#include <erl_nif.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -23,246 +14,294 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include <linux/joystick.h>
 
 /* ---------------------------------------------------------------------
- * function prototypes
+ * some constants
  * --------------------------------------------------------------------- */
-int main(int argc, char** argv);
-void hack(void);
-void joystick_name_version(int fd);
-void joystick_event(struct js_event e);
-void joystick_event_button(struct js_event e);
-void joystick_event_axis(struct js_event e);
+static const char atom_ok[]        = "ok";
+static const char atom_error[]     = "error";
+static const char atom_no_event[]  = "noevent";
+static const int max_pathname      = PATH_MAX;
+static const int max_joystick_name = NAME_MAX;
 
 /* ---------------------------------------------------------------------
- * main entry point
+ * open a (joystick-)device
+ * input: joystick device name (string)
+ * result: {error, errno}
+ *         {ok, fd}
  * --------------------------------------------------------------------- */
-int main(int argc, char** argv)
+static ERL_NIF_TERM js_open(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-  /* --- parse arguments ----------------------------------------------- */
-  /* --- setup environment --------------------------------------------- */
-  /* --- loop until done ----------------------------------------------- */
+  int fd;
+  char pathname[max_pathname]; 
   
-  /* --- just for 1st testing ------------------------------------------ */
-  hack();
-
-  /* --- terminate gracefully ------------------------------------------ */
-  return 0;
-}
-
-/* ---------------------------------------------------------------------
- * just a hack, to get a basic understanding of the joystick API
- * --------------------------------------------------------------------- */
-void hack(void)
-{
-  int fdjs;
-  int loop = 1;
-  struct js_event jse;
-
-  fdjs = open("/dev/input/js0", O_RDONLY | O_NONBLOCK);
-  if (0 < fdjs) {
-    joystick_name_version(fdjs);
-    while (loop) {
-      if (-1 == read(fdjs, &jse, sizeof(struct js_event))) {
-	if (errno == EAGAIN) {
-	  //fprintf(stderr, "no event\n");
-	} else {
-	  fprintf(stderr, "Error: read() failed with errno %d!\n", errno);
-	  loop = 0;
-	}
-      } else {
-	joystick_event(jse);
-      }
-    }
-    if (-1 == close(fdjs)) {
-      fprintf(stderr, "Error: failed to close() with errno %d!\n", errno);
-    }
-  } else {
-    fprintf(stderr, "Error: failed to open joystick device wth errno %d!\n", errno);
-    exit(1);
+  ERL_NIF_TERM t_key;
+  ERL_NIF_TERM t_val;
+  ERL_NIF_TERM t_res;
+  
+  if (1 != argc) {
+    return enif_make_badarg(env);
   }
+  
+  if (0 >= enif_get_string(env, argv[0], pathname, max_pathname, ERL_NIF_LATIN1)) {
+    return enif_make_badarg(env);
+  }
+    
+  fd = open(pathname, O_RDONLY | O_NONBLOCK);
+  if (-1 == fd) {
+    t_key = enif_make_atom(env, atom_error);
+    t_val = enif_make_int(env, errno);
+  } else {
+    t_key = enif_make_atom(env, atom_ok);
+    t_val = enif_make_int(env, fd);
+  }
+  
+  t_res = enif_make_tuple2(env, t_key, t_val);
+  return t_res;
 }
 
 /* ---------------------------------------------------------------------
- * get the joystick name and some more information
+ * close a (joystick-)device
+ * input: fd
+ * result: {error, errno}
+ *         ok
  * --------------------------------------------------------------------- */
-void joystick_name_version(int fd)
+static ERL_NIF_TERM js_close(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-  char name[128];
-  int  version;
-  char count_axis;
+  int fd;
+  
+  ERL_NIF_TERM t_key;
+  ERL_NIF_TERM t_val;
+  ERL_NIF_TERM t_res;
+  
+  if (1 != argc) {
+    return enif_make_badarg(env);
+  }
+  
+  if (!enif_get_int(env, argv[0], &fd)) {
+    return enif_make_badarg(env);
+  }
+    
+  if (-1 == close(fd)) {
+    t_key = enif_make_atom(env, atom_error);
+    t_val = enif_make_int(env, errno);
+    t_res = enif_make_tuple2(env, t_key, t_val);
+  } else {
+    t_res = enif_make_atom(env, atom_ok);
+  }
+  
+  return t_res;
+}
+
+/* ---------------------------------------------------------------------
+ * read a joystick event
+ * input: fd
+ * result: {error, errno}
+ *         {ok, noevent}
+ *         {ok, time, value, type, number}
+ * --------------------------------------------------------------------- */
+static ERL_NIF_TERM js_read(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+  int fd;
+  struct js_event jse;
+  
+  ERL_NIF_TERM t_key;
+  ERL_NIF_TERM t_val;
+  ERL_NIF_TERM t_time;
+  ERL_NIF_TERM t_type;
+  ERL_NIF_TERM t_number;
+  ERL_NIF_TERM t_res;
+  
+  if (1 != argc) {
+    return enif_make_badarg(env);
+  }
+  
+  if (!enif_get_int(env, argv[0], &fd)) {
+    return enif_make_badarg(env);
+  }
+    
+  if (-1 == read(fd, &jse, sizeof(struct js_event))) {
+    if (errno == EAGAIN) {
+      t_key = enif_make_atom(env, atom_ok);
+      t_val = enif_make_atom(env, atom_no_event);
+    } else {
+      t_key = enif_make_atom(env, atom_error);
+      t_val = enif_make_int(env, errno);
+    }
+    t_res = enif_make_tuple2(env, t_key, t_val);
+  } else {
+    t_key    = enif_make_atom(env, atom_ok);
+    t_time   = enif_make_int(env, jse.time);
+    t_val    = enif_make_int(env, jse.value);
+    t_type   = enif_make_int(env, jse.type);
+    t_number = enif_make_int(env, jse.number);
+    t_res    = enif_make_tuple5(env, t_key, t_time, t_val, t_type, t_number);
+  }
+  
+  return t_res;
+}
+
+/* ---------------------------------------------------------------------
+ * get joystick name
+ * input: fd
+ * result: {error, errno}
+ *         {ok, Name}
+ * --------------------------------------------------------------------- */
+static ERL_NIF_TERM js_name(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+  int fd;
+  char name[128];  
+  
+  ERL_NIF_TERM t_key;
+  ERL_NIF_TERM t_val;
+  ERL_NIF_TERM t_res;
+  
+  if (1 != argc) {
+    return enif_make_badarg(env);
+  }
+  
+  if (!enif_get_int(env, argv[0], &fd)) {
+    return enif_make_badarg(env);
+  }
+    
+  if (-1 == ioctl(fd, JSIOCGNAME(sizeof(name)), name)) {
+    t_key = enif_make_atom(env, atom_error);
+    t_val = enif_make_int(env, errno);
+  } else {
+    t_key = enif_make_atom(env, atom_ok);
+    t_val = enif_make_string(env, name, ERL_NIF_LATIN1);
+  }
+  
+  t_res = enif_make_tuple2(env, t_key, t_val);
+  return t_res;
+}
+
+/* ---------------------------------------------------------------------
+ * get joystick version
+ * input: fd
+ * result: {error, errno}
+ *         {ok, Version}
+ * --------------------------------------------------------------------- */
+static ERL_NIF_TERM js_version(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+  int fd;
+  int version;
+  
+  ERL_NIF_TERM t_key;
+  ERL_NIF_TERM t_val;
+  ERL_NIF_TERM t_res;
+  
+  if (1 != argc) {
+    return enif_make_badarg(env);
+  }
+  
+  if (!enif_get_int(env, argv[0], &fd)) {
+    return enif_make_badarg(env);
+  }
+    
+  if (-1 == ioctl(fd, JSIOCGVERSION, &version)) {
+    t_key = enif_make_atom(env, atom_error);
+    t_val = enif_make_int(env, errno);
+  } else {
+    t_key = enif_make_atom(env, atom_ok);
+    t_val = enif_make_int(env, version);
+  }
+  
+  t_res = enif_make_tuple2(env, t_key, t_val);
+  return t_res;
+}
+
+/* ---------------------------------------------------------------------
+ * get number of joystick axes
+ * input: fd
+ * result: {error, errno}
+ *         {ok, Axes}
+ * --------------------------------------------------------------------- */
+static ERL_NIF_TERM js_axes(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+  int fd;
+  char count_axes;
+  
+  ERL_NIF_TERM t_key;
+  ERL_NIF_TERM t_val;
+  ERL_NIF_TERM t_res;
+  
+  if (1 != argc) {
+    return enif_make_badarg(env);
+  }
+  
+  if (!enif_get_int(env, argv[0], &fd)) {
+    return enif_make_badarg(env);
+  }
+    
+  if (-1 == ioctl(fd, JSIOCGAXES, &count_axes)) {
+    t_key = enif_make_atom(env, atom_error);
+    t_val = enif_make_int(env, errno);
+  } else {
+    t_key = enif_make_atom(env, atom_ok);
+    t_val = enif_make_int(env, count_axes);
+  }
+  
+  t_res = enif_make_tuple2(env, t_key, t_val);
+  return t_res;
+}
+
+/* ---------------------------------------------------------------------
+ * get number of buttons
+ * input: fd
+ * result: {error, errno}
+ *         {ok, Buttons}
+ * --------------------------------------------------------------------- */
+static ERL_NIF_TERM js_buttons(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+  int fd;
   char count_buttons;
   
-  if (-1 == ioctl(fd, JSIOCGNAME(sizeof(name)), name)) {
-    fprintf(stderr, "Failed to get name of joystick!\n");
-  } else {
-    fprintf(stderr, "Joystick name: %s\n", name);
+  ERL_NIF_TERM t_key;
+  ERL_NIF_TERM t_val;
+  ERL_NIF_TERM t_res;
+  
+  if (1 != argc) {
+    return enif_make_badarg(env);
   }
-
-  if (-1 == ioctl(fd, JSIOCGVERSION, &version)) {
-    fprintf(stderr, "Failed to get version of joystick driver!\n");
-  } else {
-    fprintf(stderr, "Joystick version: %d\n", version);
+  
+  if (!enif_get_int(env, argv[0], &fd)) {
+    return enif_make_badarg(env);
   }
-
-  if (-1 == ioctl(fd, JSIOCGAXES, &count_axis)) {
-    fprintf(stderr, "Failed to get axis count!\n");
-  } else {
-    fprintf(stderr, "Axis count: %d\n", count_axis);
-  }
-
+    
   if (-1 == ioctl(fd, JSIOCGBUTTONS, &count_buttons)) {
-    fprintf(stderr, "Failed to get button count!\n");
+    t_key = enif_make_atom(env, atom_error);
+    t_val = enif_make_int(env, errno);
   } else {
-    fprintf(stderr, "Button count: %d\n", count_buttons);
+    t_key = enif_make_atom(env, atom_ok);
+    t_val = enif_make_int(env, count_buttons);
   }
+  
+  t_res = enif_make_tuple2(env, t_key, t_val);
+  return t_res;
 }
 
 /* ---------------------------------------------------------------------
- * handle a joystick event
+ * NIF mapping
  * --------------------------------------------------------------------- */
-void joystick_event(struct js_event e)
-{
-  switch (e.type) {
-  case JS_EVENT_AXIS:
-    joystick_event_axis(e);
-    break;
-  case JS_EVENT_BUTTON:
-    joystick_event_button(e);
-    break;
-  default:
-    fprintf(stderr, "js - unknown - %d - %d - %d - %d\n", e.time, e.value, e.type, e.number);
-  }
-}
+static ErlNifFunc nif_funcs[] = {
+  { "jsnif_open",    1, js_open    },
+  { "jsnif_close",   1, js_close   },
+  { "jsnif_read",    1, js_read    },
+  { "jsnif_name",    1, js_name    },
+  { "jsnif_version", 1, js_version },
+  { "jsnif_axes",    1, js_axes    },
+  { "jsnif_buttons", 1, js_buttons }
+};
 
 /* ---------------------------------------------------------------------
- * handle a joysitck button event
+ * NIF interface description
  * --------------------------------------------------------------------- */
-void joystick_event_button(struct js_event e)
-{
-  switch (e.number) {
-  case 0:
-    /* SELECT */
-    fprintf(stderr, "js - SELECT button - %d - %d - %d - %d\n", e.time, e.value, e.type, e.number);
-    break;
-  case 1:
-    /* left joystick press */
-    break;
-  case 2:
-    /* right joystick press */
-    break;
-  case 3:
-    /* START */
-    fprintf(stderr, "js - START button - %d - %d - %d - %d\n", e.time, e.value, e.type, e.number);
-    break;
-  case 4:
-    /* left up */
-    break;
-  case 5:
-    /* left right */
-    break;
-  case 6:
-    /* left down */
-    break;
-  case 7:
-    /* left left */
-    break;
-  case 8:
-    /* L2 */
-    break;
-  case 9:
-    /* R2 */
-    break;
-  case 10:
-    /* L1 */
-    break;
-  case 11:
-    /* R1 */
-    break;
-  case 12:
-    /* right green triangle */
-    break;
-  case 13:
-    /* right red circle */
-    break;
-  case 14:
-    /* right grey X */
-    break;
-  case 15:
-    /* right pink square */
-    break;
-  case 16:
-    /* PS */
-    break;
-  default:
-    fprintf(stderr, "js - button unknown - %d - %d - %d - %d\n", e.time, e.value, e.type, e.number);
-  }
-}
+ERL_NIF_INIT(joystick, nif_funcs, NULL, NULL, NULL, NULL)
 
-/* ---------------------------------------------------------------------
- * handle a joystick axis event
- * --------------------------------------------------------------------- */
-void joystick_event_axis(struct js_event e)
-{
-  switch (e.number) {
-  case 0:
-  case 1:
-    /* left joystick */
-    break;
-  case 2:
-  case 3:
-    /* right joystick */
-    break;
-  case 4:
-  case 5:
-  case 6: /* controller  */
-    /* posistion of the controller */
-    break;
-  case 8:
-    /* left up */
-    break;
-  case 9:
-    /* left right */
-    break;
-  case 10:
-    /* left down */
-    break;
-  case 11:
-    /* left left */
-    break;
-  case 12:
-    /* L2 */
-    break;
-  case 13:
-    /* R2 */
-    break;
-  case 14:
-    /* L1 */
-    break;
-  case 15:
-    /* R1 */
-    break;
-  case 16:
-    /* right green triangle */
-    break;
-  case 17:
-    /* right red circle */
-    break;
-  case 18:
-    /* right grey X */
-    break;
-  case 19:
-    /* right ping square */
-    break;
-  default:
-    fprintf(stderr, "js - axis unknown - %d - %d - %d - %d\n", e.time, e.value, e.type, e.number);
-  }
-}
-
-/* #####################################################################
- *
+/* =====================================================================
  * End Of File
- *
- * ##################################################################### */
+ * ===================================================================== */

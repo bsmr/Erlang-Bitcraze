@@ -4,8 +4,8 @@
 
 all:
 
-EBINS		=	ebin/ebe.beam
-PRIVS		=	priv/bccrusbexample
+EBINS		=	ebin/ebe.beam ebin/joystick.beam
+PRIVS		=	priv/bccrusbexample priv/joystick.so
 LIBUSB_CFLAGS	=	-I/usr/include/libusb-1.0
 #LIBUSB_LIBS	=	-L/usr/lib/x86_64-linux-gnu -lusb-1.0
 LIBUSB_LIBS	=	-lusb-1.0
@@ -19,30 +19,21 @@ create_directories:
 	@mkdir -p "priv"
 	@mkdir -p "obj"
 
-compile:	create_directories $(EBINS) $(PRIVS)	\
-		priv/joystick				\
-		priv/joystick.so
+compile:	create_directories $(EBINS) $(PRIVS)
 	@erl -make
 
 ebin/ebe.beam:	src/ebe.erl
 
+ebin/joystick.beam:	src/joystick.erl priv/joystick.so
+
 priv/bccrusbexample:	c_src/bccrusbexample.c
 	gcc -s -Wall -O2 -o priv/bccrusbexample $(LIBUSB_CFLAGS) c_src/bccrusbexample.c $(LIBUSB_LIBS)
 
-obj/joystick.o:		c_src/joystick.c
-	gcc -Wall -O2 -o obj/joystick.o -c c_src/joystick.c
+obj/joystick.o:	c_src/joystick.c
+	gcc -fpic -shared -Wall -O2 -I$(ERL_INCS) -o obj/joystick.o -c c_src/joystick.c
 
-obj/joysticknif.o:	c_src/joysticknif.c
-	gcc -fpic -shared -Wall -O2 -I$(ERL_INCS) -o obj/joysticknif.o -c c_src/joysticknif.c
-
-priv/joystick:	obj/joystick.o
-	gcc -s -o priv/joystick obj/joystick.o
-
-priv/joystick.so:	obj/joysticknif.o
-	gcc -s -fpic -shared -o priv/joystick.so obj/joysticknif.o
-
-run-joystick: priv/joystick
-	@priv/joystick
+priv/joystick.so:	obj/joystick.o
+	gcc -s -fpic -shared -o priv/joystick.so obj/joystick.o
 
 clean:
 	@rm -f *~
