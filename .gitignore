@@ -1,6 +1,7 @@
 # Erlang/OTP
 *.beam
 ebin/*.beam
+erl_crash.dump
 
 # C/C++ files
 priv/*

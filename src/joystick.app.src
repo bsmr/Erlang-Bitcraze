@@ -1,0 +1,12 @@
+%%% -*- coding: utf-8; mode: erlang; -*-
+{application, joystick,
+ [{description, "joystick access"},
+  {vsn, "0.0.1"},
+  {modules, [joystick,
+	     joystick_app,
+	     joystick_sup,
+	     joystick_srv]},
+  {registered, [joystick_sup]},
+  {applications, [kernel, stdlib]},
+  {mod, {joystick_app, []}}
+ ]}.
